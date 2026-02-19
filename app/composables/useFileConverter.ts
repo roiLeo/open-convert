@@ -134,8 +134,8 @@ export const useFileConverter = () => {
     await ffmpeg.writeFile(inputName, await fetchFile(file))
     await ffmpeg.exec(['-i', inputName, outputName])
 
-    const data = await ffmpeg.readFile(outputName) as Uint8Array
-    const blob = new Blob([data], { type: getMimeType(outputFormat) })
+    const data = await ffmpeg.readFile(outputName) as Uint8Array<ArrayBuffer>
+    const blob = new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)], { type: getMimeType(outputFormat) })
 
     ffmpeg.deleteFile(inputName)
     ffmpeg.deleteFile(outputName)
@@ -174,7 +174,8 @@ export const useFileConverter = () => {
       const XLSX = await import('xlsx')
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer)
-      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[0]])
+      const sheetName = workbook.SheetNames[0]
+      const csv = sheetName ? XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]) : ''
       const blob = new Blob([csv], { type: 'text/csv' })
       return { blob, size: blob.size }
     }
@@ -183,7 +184,8 @@ export const useFileConverter = () => {
     if (['xlsx', 'xls', 'csv'].includes(inputFormat) && outputFormat === 'json') {
       const XLSX = await import('xlsx')
       const buffer = await file.arrayBuffer()
-      const workbook = XLSX.read(buffer)
+      const sheetName = workbook.SheetNames[0]
+      const json = sheetName ? XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]) : []
       const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
       const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
       return { blob, size: blob.size }

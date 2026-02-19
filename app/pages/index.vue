@@ -176,16 +176,20 @@ const handleConvert = async (conversion: ConversionItem) => {
   const index = conversions.value.findIndex(c => c.id === conversion.id)
   if (index === -1) return
 
-  conversions.value[index].status = 'converting'
-  conversions.value[index].progress = 0
+  const conv = conversions.value[index]
+  if (!conv) return
+
+  conv.status = 'converting'
+  conv.progress = 0
 
   try {
     const { convertFile } = useFileConverter()
 
     // Simulate progress
     const progressInterval = setInterval(() => {
-      if (conversions.value[index].progress < 90) {
-        conversions.value[index].progress += 10
+      const current = conversions.value[index]
+      if (current && current.progress < 90) {
+        current.progress += 10
       }
     }, 200)
 
@@ -196,13 +200,19 @@ const handleConvert = async (conversion: ConversionItem) => {
     )
 
     clearInterval(progressInterval)
-    conversions.value[index].progress = 100
-    conversions.value[index].status = 'completed'
-    conversions.value[index].convertedBlob = result.blob
-    conversions.value[index].convertedSize = result.blob.size
+    const current = conversions.value[index]
+    if (current) {
+      current.progress = 100
+      current.status = 'completed'
+      current.convertedBlob = result.blob
+      current.convertedSize = result.blob.size
+    }
   } catch (error) {
-    conversions.value[index].status = 'error'
-    conversions.value[index].error = error instanceof Error ? error.message : 'Conversion failed'
+    const current = conversions.value[index]
+    if (current) {
+      current.status = 'error'
+      current.error = error instanceof Error ? error.message : 'Conversion failed'
+    }
   }
 }
 

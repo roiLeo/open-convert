@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync } from 'fs'
+import { copyFileSync, mkdirSync } from 'node:fs'
 
 export default defineNuxtConfig({
   modules: [
