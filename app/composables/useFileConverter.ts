@@ -184,9 +184,9 @@ export const useFileConverter = () => {
     if (['xlsx', 'xls', 'csv'].includes(inputFormat) && outputFormat === 'json') {
       const XLSX = await import('xlsx')
       const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer)
       const sheetName = workbook.SheetNames[0]
       const json = sheetName ? XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]) : []
-      const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
       const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
       return { blob, size: blob.size }
     }
