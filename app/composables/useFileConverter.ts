@@ -86,7 +86,9 @@ export const useFileConverter = () => {
       const img = new Image()
       const reader = new FileReader()
 
-      reader.onload = (e) => { img.src = e.target?.result as string }
+      reader.onload = (e) => {
+        img.src = e.target?.result as string
+      }
 
       img.onload = () => {
         const canvas = document.createElement('canvas')
@@ -101,7 +103,7 @@ export const useFileConverter = () => {
         }
         ctx.drawImage(img, 0, 0)
         canvas.toBlob(
-          (blob) => blob ? resolve({ blob, size: blob.size }) : reject(new Error('Failed to convert image')),
+          blob => blob ? resolve({ blob, size: blob.size }) : reject(new Error('Failed to convert image')),
           getMimeType(outputFormat),
           0.95
         )

@@ -16,7 +16,7 @@
       multiple
       class="hidden"
       @change="handleFileInput"
-    />
+    >
 
     <div
       class="flex flex-col items-center justify-center py-16 px-8 cursor-pointer"
