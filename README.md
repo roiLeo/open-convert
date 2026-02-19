@@ -20,7 +20,7 @@ Fast, free, and secure file conversion in your browser. Convert images, videos, 
 
 ### Prerequisites
 
-- Node.js 18+ and pnpm
+- Node.js 20+ and pnpm
 - Modern browser with WebAssembly support
 
 ### Installation
@@ -78,15 +78,14 @@ open-convert/
 
 ## 🛠️ Technology Stack
 
-- **Framework**: [Nuxt 3](https://nuxt.com/) - Vue 3 meta-framework
+- **Package Manager**: pnpm
+- **Language**: TypeScript
+- **Framework**: [Nuxt](https://nuxt.com/) - Vue 3 meta-framework
 - **UI Library**: [@nuxt/ui](https://ui.nuxt.com/) - Tailwind CSS components
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
 - **Video/Audio Processing**: [FFmpeg.wasm](https://ffmpegwasm.netlify.app/)
 - **Document Processing**: 
   - [jsPDF](https://github.com/parallax/jsPDF) - PDF generation
   - [SheetJS](https://sheetjs.com/) - Excel/CSV handling
-- **Language**: TypeScript
-- **Package Manager**: pnpm
 
 ## 📖 Usage
 
@@ -148,33 +147,6 @@ File conversion limits depend on available browser memory, typically:
 - Video: Up to 1GB
 - Documents: Up to 50MB
 
-## 🔍 Development
-
-### Scripts
-
-```bash
-# Development server with hot reload
-pnpm dev
-
-# Type checking
-pnpm typecheck
-
-# Linting
-pnpm lint
-
-# Production build
-pnpm build
-
-# Preview production build
-pnpm preview
-```
-
-### Code Quality
-
-- **TypeScript**: Strict type checking enabled
-- **ESLint**: Code style enforcement
-- **Tailwind CSS**: Utility-first CSS framework
-
 ## 🚀 Deployment
 
 ### Build for Production
@@ -230,7 +202,7 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## 📄 License
 
-This project is open source and available under the MIT License.
+[WTFPL](https://en.wikipedia.org/wiki/WTFPL)
 
 ## 💡 Tips & Tricks
 
@@ -272,5 +244,4 @@ For issues, questions, or suggestions, please open an issue on the project repos
 
 - [FFmpeg.wasm](https://ffmpegwasm.netlify.app/) for video/audio processing
 - [Nuxt](https://nuxt.com/) for the amazing framework
-- [Tailwind CSS](https://tailwindcss.com/) for utility-first styling
 - All open-source libraries that make this project possible

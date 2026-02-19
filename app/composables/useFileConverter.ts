@@ -1,9 +1,7 @@
 import type { ConversionResult } from '~/types'
 import type { FFmpeg } from '@ffmpeg/ffmpeg'
-// import { fetchFile } from '@ffmpeg/util'
 
-// FFmpeg singleton
-// Only instantiate in browser
+// FFmpeg singleton - Only instantiate in browser
 let ffmpeg: FFmpeg | null = null
 let ffmpegLoaded = false
 
@@ -175,7 +173,8 @@ export const useFileConverter = () => {
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer)
       const sheetName = workbook.SheetNames[0]
-      const csv = sheetName ? XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]) : ''
+      const sheet = sheetName ? workbook.Sheets[sheetName] : undefined
+      const csv = sheet ? XLSX.utils.sheet_to_csv(sheet) : ''
       const blob = new Blob([csv], { type: 'text/csv' })
       return { blob, size: blob.size }
     }
@@ -186,7 +185,8 @@ export const useFileConverter = () => {
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer)
       const sheetName = workbook.SheetNames[0]
-      const json = sheetName ? XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]) : []
+      const sheet = sheetName ? workbook.Sheets[sheetName] : undefined
+      const json = sheet ? XLSX.utils.sheet_to_json(sheet) : []
       const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
       return { blob, size: blob.size }
     }
