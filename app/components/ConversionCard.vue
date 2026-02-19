@@ -19,7 +19,7 @@
             <p class="text-xs text-primary mt-1">
               {{ formatFileSize(conversion.fileSize) }}
               <span v-if="conversion.convertedSize && conversion.status === 'completed'">
-                → {{ formatFileSize(conversion.convertedSize) }}
+                → {{ formatFileSize(conversion.convertedSize) }} (-{{ getSizeReduction(conversion.fileSize, conversion.convertedSize) }}%)
               </span>
             </p>
           </div>
@@ -52,7 +52,7 @@
 
           <USelectMenu
             v-model="selectedFormat"
-            :options="getAvailableFormats(conversion.inputFormat)"
+            :items="getAvailableFormats(conversion.inputFormat)"
             placeholder="Select format"
             size="md"
             class="w-40"
@@ -102,7 +102,7 @@
             variant="subtle"
             size="lg"
           >
-            {{ conversion.inputFormat.toUpperCase() }} → {{ conversion.outputFormat.toUpperCase() }}
+            {{ conversion.inputFormat.toUpperCase() }} → {{ selectedFormat.toUpperCase() }}
           </UBadge>
 
           <div class="flex-1" />
@@ -110,7 +110,7 @@
           <UButton
             label="Download"
             icon="i-heroicons-arrow-down-tray"
-            color="primary"
+            color="success"
             @click="$emit('download', conversion)"
           />
         </div>
@@ -153,31 +153,7 @@ const emit = defineEmits<{
 
 const selectedFormat = ref('')
 
-function getAvailableFormats(inputFormat: string): string[] {
-  const formats = formatGroups[inputFormat.toLowerCase() as keyof typeof formatGroups] || []
-  return formats.map(f => f.toUpperCase())
-}
-
-function getFileIcon(format: string): string {
-  format = format.toLowerCase()
-
-  if (imageFormats.includes(format)) return 'i-heroicons-photo'
-  if (videoFormats.includes(format)) return 'i-heroicons-film'
-  if (audioFormats.includes(format)) return 'i-heroicons-musical-note'
-  if (documentFormats.includes(format)) return 'i-heroicons-document-text'
-
-  return 'i-heroicons-document'
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-}
-
-function startConversion() {
+const startConversion = () => {
   if (!selectedFormat.value) return
 
   const updatedConversion = {
@@ -187,4 +163,6 @@ function startConversion() {
 
   emit('convert', updatedConversion)
 }
+
+watch(selectedFormat, startConversion)
 </script>

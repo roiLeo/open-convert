@@ -1,4 +1,52 @@
 import type { ConversionResult } from '~/types'
+import type { FFmpeg } from '@ffmpeg/ffmpeg'
+// import { fetchFile } from '@ffmpeg/util'
+
+// FFmpeg singleton
+// Only instantiate in browser
+let ffmpeg: FFmpeg | null = null
+let ffmpegLoaded = false
+
+async function loadFFmpeg() {
+  if (!import.meta.client) throw new Error('FFmpeg can only run in the browser')
+  if (ffmpegLoaded && ffmpeg) return
+
+  console.log('Importing FFmpeg...')
+  const { FFmpeg } = await import('@ffmpeg/ffmpeg')
+  console.log('FFmpeg imported, creating instance...')
+
+  ffmpeg = new FFmpeg()
+
+  // Log FFmpeg's internal messages
+  ffmpeg.on('log', ({ message }) => console.log('[FFmpeg]', message))
+
+  console.log('Checking core files...')
+  // Verify the files are actually reachable before loading
+  const [coreRes, wasmRes] = await Promise.all([
+    fetch('/ffmpeg/ffmpeg-core.js'),
+    fetch('/ffmpeg/ffmpeg-core.wasm')
+  ])
+  console.log('Core JS status:', coreRes.status, coreRes.headers.get('content-type'))
+  console.log('Core WASM status:', wasmRes.status, wasmRes.headers.get('content-type'))
+
+  if (!coreRes.ok) throw new Error(`Cannot fetch ffmpeg-core.js: ${coreRes.status}`)
+  if (!wasmRes.ok) throw new Error(`Cannot fetch ffmpeg-core.wasm: ${wasmRes.status}`)
+
+  console.log('Calling ffmpeg.load()...')
+  try {
+    await ffmpeg.load({
+      coreURL: '/ffmpeg/ffmpeg-core.js',
+      wasmURL: '/ffmpeg/ffmpeg-core.wasm',
+      workerURL: '/ffmpeg/ffmpeg-core.worker.js' // required for -mt
+    })
+  } catch (e) {
+    console.error('ffmpeg.load() failed:', e)
+    throw e
+  }
+
+  ffmpegLoaded = true
+  console.log('FFmpeg ready.')
+}
 
 export const useFileConverter = () => {
   async function convertFile(
@@ -9,140 +57,142 @@ export const useFileConverter = () => {
     inputFormat = inputFormat.toLowerCase()
     outputFormat = outputFormat.toLowerCase()
 
-    // Image conversions
     if (isImageFormat(inputFormat) && isImageFormat(outputFormat)) {
       return await convertImage(file, outputFormat)
     }
 
-    // Video to audio (simulate)
     if (isVideoFormat(inputFormat) && isAudioFormat(outputFormat)) {
-      return await convertVideoToAudio(file, outputFormat)
+      return await convertWithFFmpeg(file, inputFormat, outputFormat)
     }
 
-    // Audio conversions (simulate)
     if (isAudioFormat(inputFormat) && isAudioFormat(outputFormat)) {
-      return await convertAudio(file, outputFormat)
+      return await convertWithFFmpeg(file, inputFormat, outputFormat)
     }
 
-    // Video conversions (simulate)
     if (isVideoFormat(inputFormat) && isVideoFormat(outputFormat)) {
-      return await convertVideo(file, outputFormat)
+      return await convertWithFFmpeg(file, inputFormat, outputFormat)
     }
 
-    // Document conversions (simulate)
     if (isDocumentFormat(inputFormat) || isDocumentFormat(outputFormat)) {
-      return await convertDocument(file, outputFormat)
+      return await convertDocument(file, inputFormat, outputFormat)
     }
 
     throw new Error(`Conversion from ${inputFormat} to ${outputFormat} is not supported`)
   }
 
+  // ─── Images via Canvas API
   async function convertImage(file: File, outputFormat: string): Promise<ConversionResult> {
     return new Promise((resolve, reject) => {
       const img = new Image()
       const reader = new FileReader()
 
-      reader.onload = (e) => {
-        img.src = e.target?.result as string
-      }
+      reader.onload = (e) => { img.src = e.target?.result as string }
 
       img.onload = () => {
         const canvas = document.createElement('canvas')
         canvas.width = img.width
         canvas.height = img.height
-
         const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'))
-          return
-        }
+        if (!ctx) return reject(new Error('Failed to get canvas context'))
 
-        // White background for formats that don't support transparency
         if (outputFormat === 'jpg' || outputFormat === 'jpeg') {
           ctx.fillStyle = '#FFFFFF'
           ctx.fillRect(0, 0, canvas.width, canvas.height)
         }
-
         ctx.drawImage(img, 0, 0)
-
         canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve({
-                blob,
-                size: blob.size
-              })
-            } else {
-              reject(new Error('Failed to convert image'))
-            }
-          },
+          (blob) => blob ? resolve({ blob, size: blob.size }) : reject(new Error('Failed to convert image')),
           getMimeType(outputFormat),
           0.95
         )
       }
 
-      img.onerror = () => {
-        reject(new Error('Failed to load image'))
-      }
-
-      reader.onerror = () => {
-        reject(new Error('Failed to read file'))
-      }
-
+      img.onerror = () => reject(new Error('Failed to load image'))
+      reader.onerror = () => reject(new Error('Failed to read file'))
       reader.readAsDataURL(file)
     })
   }
 
-  async function convertVideoToAudio(file: File, outputFormat: string): Promise<ConversionResult> {
-    // Simulate conversion with a delay
-    await new Promise(resolve => setTimeout(resolve, 2000))
+  // ─── Audio & Video via FFmpeg.wasm
+  async function convertWithFFmpeg(
+    file: File,
+    inputFormat: string,
+    outputFormat: string
+  ): Promise<ConversionResult> {
+    console.log('Loading FFmpeg for conversion...')
+    await loadFFmpeg()
+    const { fetchFile } = await import('@ffmpeg/util')
 
-    // In a real implementation, this would use FFmpeg.wasm
-    // For now, return a simulated result
-    const blob = new Blob([file], { type: getMimeType(outputFormat) })
+    console.log('FFmpeg loaded, starting conversion...')
+    const inputName = `input.${inputFormat}`
+    const outputName = `output.${outputFormat}`
 
-    return {
-      blob,
-      size: Math.floor(file.size * 0.3) // Audio is typically smaller
-    }
+    if (!ffmpeg) throw new Error('FFmpeg instance is not available')
+
+    await ffmpeg.writeFile(inputName, await fetchFile(file))
+    await ffmpeg.exec(['-i', inputName, outputName])
+
+    const data = await ffmpeg.readFile(outputName) as Uint8Array
+    const blob = new Blob([data], { type: getMimeType(outputFormat) })
+
+    ffmpeg.deleteFile(inputName)
+    ffmpeg.deleteFile(outputName)
+
+    console.log(`Conversion complete: ${inputFormat} → ${outputFormat}, size: ${blob.size} bytes`)
+
+    return { blob, size: blob.size }
   }
 
-  async function convertAudio(file: File, outputFormat: string): Promise<ConversionResult> {
-    // Simulate conversion with a delay
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    const blob = new Blob([file], { type: getMimeType(outputFormat) })
-
-    return {
-      blob,
-      size: file.size
+  // ─── Documents
+  async function convertDocument(
+    file: File,
+    inputFormat: string,
+    outputFormat: string
+  ): Promise<ConversionResult> {
+    // Plain text-based formats: just re-wrap the content
+    const textFormats = ['txt', 'html', 'json', 'xml', 'csv']
+    if (textFormats.includes(inputFormat) && textFormats.includes(outputFormat)) {
+      const text = await file.text()
+      const blob = new Blob([text], { type: getMimeType(outputFormat) })
+      return { blob, size: blob.size }
     }
+
+    // TXT/HTML → PDF via jsPDF
+    if (textFormats.includes(inputFormat) && outputFormat === 'pdf') {
+      const { jsPDF } = await import('jspdf')
+      const text = await file.text()
+      const doc = new jsPDF()
+      doc.text(text, 10, 10)
+      const blob = doc.output('blob')
+      return { blob, size: blob.size }
+    }
+
+    // XLSX/XLS/CSV → CSV (using SheetJS)
+    if (['xlsx', 'xls', 'csv'].includes(inputFormat) && outputFormat === 'csv') {
+      const XLSX = await import('xlsx')
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer)
+      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[0]])
+      const blob = new Blob([csv], { type: 'text/csv' })
+      return { blob, size: blob.size }
+    }
+
+    // XLSX/XLS/CSV → JSON (using SheetJS)
+    if (['xlsx', 'xls', 'csv'].includes(inputFormat) && outputFormat === 'json') {
+      const XLSX = await import('xlsx')
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer)
+      const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
+      const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
+      return { blob, size: blob.size }
+    }
+
+    throw new Error(
+      `Document conversion from ${inputFormat} to ${outputFormat} is not supported client-side. Consider using a backend service.`
+    )
   }
 
-  async function convertVideo(file: File, outputFormat: string): Promise<ConversionResult> {
-    // Simulate conversion with a delay
-    await new Promise(resolve => setTimeout(resolve, 3000))
-
-    const blob = new Blob([file], { type: getMimeType(outputFormat) })
-
-    return {
-      blob,
-      size: file.size
-    }
-  }
-
-  async function convertDocument(file: File, outputFormat: string): Promise<ConversionResult> {
-    // Simulate conversion with a delay
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    const blob = new Blob([file], { type: getMimeType(outputFormat) })
-
-    return {
-      blob,
-      size: file.size
-    }
-  }
-
+  // ─── Helpers
   function isImageFormat(format: string): boolean {
     return ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'ico', 'svg'].includes(format)
   }
@@ -161,51 +211,21 @@ export const useFileConverter = () => {
 
   function getMimeType(format: string): string {
     const mimeTypes: Record<string, string> = {
-      // Images
-      png: 'image/png',
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      webp: 'image/webp',
-      gif: 'image/gif',
-      bmp: 'image/bmp',
-      ico: 'image/x-icon',
-      svg: 'image/svg+xml',
-
-      // Videos
-      mp4: 'video/mp4',
-      webm: 'video/webm',
-      avi: 'video/x-msvideo',
-      mov: 'video/quicktime',
-      mkv: 'video/x-matroska',
-      flv: 'video/x-flv',
-      wmv: 'video/x-ms-wmv',
-
-      // Audio
-      mp3: 'audio/mpeg',
-      wav: 'audio/wav',
-      ogg: 'audio/ogg',
-      aac: 'audio/aac',
-      m4a: 'audio/mp4',
-      flac: 'audio/flac',
-      wma: 'audio/x-ms-wma',
-
-      // Documents
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
+      gif: 'image/gif', bmp: 'image/bmp', ico: 'image/x-icon', svg: 'image/svg+xml',
+      mp4: 'video/mp4', webm: 'video/webm', avi: 'video/x-msvideo', mov: 'video/quicktime',
+      mkv: 'video/x-matroska', flv: 'video/x-flv', wmv: 'video/x-ms-wmv',
+      mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', aac: 'audio/aac',
+      m4a: 'audio/mp4', flac: 'audio/flac', wma: 'audio/x-ms-wma',
       pdf: 'application/pdf',
       docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      doc: 'application/msword',
-      txt: 'text/plain',
-      html: 'text/html',
+      doc: 'application/msword', txt: 'text/plain', html: 'text/html',
       xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      xls: 'application/vnd.ms-excel',
-      csv: 'text/csv',
-      json: 'application/json',
-      xml: 'application/xml'
+      xls: 'application/vnd.ms-excel', csv: 'text/csv',
+      json: 'application/json', xml: 'application/xml'
     }
-
     return mimeTypes[format] || 'application/octet-stream'
   }
 
-  return {
-    convertFile
-  }
+  return { convertFile }
 }
