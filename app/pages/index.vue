@@ -14,7 +14,7 @@
         Convert files locally<br>in your browser
       </h1>
 
-      <p class="text-xl text-toned max-w-2xl mx-auto mb-8">
+      <p class="text-xl text-muted max-w-2xl mx-auto mb-8">
         Images, videos, audio, documents - all processed on your device using WebAssembly. Your files never leave your computer.
       </p>
     </div>

@@ -4,7 +4,7 @@
       <h1 class="text-4xl font-bold tracking-tight mb-4">
         Supported Formats
       </h1>
-      <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+      <p class="text-xl text-muted max-w-2xl mx-auto">
         Convert between 150+ file formats - all locally in your browser
       </p>
     </div>
@@ -19,7 +19,7 @@
         <div class="flex items-center gap-3 mb-4">
           <UIcon
             name="i-heroicons-photo"
-            class="w-6 h-6 text-primary"
+            class="size-6 text-primary"
           />
           <h2 class="text-2xl font-bold text-highlighted">
             Image
@@ -68,7 +68,7 @@
         <div class="flex items-center gap-3 mb-4">
           <UIcon
             name="i-heroicons-film"
-            class="w-6 h-6 text-primary"
+            class="size-6 text-primary"
           />
           <h2 class="text-2xl font-bold text-highlighted">
             Video
@@ -115,7 +115,7 @@
         <div class="flex items-center gap-3 mb-4">
           <UIcon
             name="i-heroicons-musical-note"
-            class="w-6 h-6 text-primary"
+            class="size-6 text-primary"
           />
           <h2 class="text-2xl font-bold text-highlighted">
             Audio
@@ -163,7 +163,7 @@
         <div class="flex items-center gap-3 mb-4">
           <UIcon
             name="i-heroicons-document-text"
-            class="w-6 h-6 text-primary"
+            class="size-6 text-primary"
           />
           <h2 class="text-2xl font-bold text-highlighted">
             Document

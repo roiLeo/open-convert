@@ -1,10 +1,10 @@
 <template>
   <div
-    class="relative rounded-2xl border-2 border-dashed transition-colors duration-200"
+    class="relative rounded-2xl border-2 border-dashed  transition-colors duration-200"
     :class="[
       isDragging
         ? 'border-primary bg-primary/5'
-        : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50'
+        : 'border-neutral-300 dark:border-neutral-700 hover:border-neutral-400 hover:bg-muted dark:hover:border-neutral-500 bg-white dark:bg-neutral-800/50'
     ]"
     @dragover.prevent="handleDragOver"
     @dragleave.prevent="handleDragLeave"
@@ -33,11 +33,11 @@
         {{ isDragging ? 'Drop files here' : 'drag & drop files here' }}
       </p>
 
-      <p class="text-gray-600 dark:text-gray-400 mb-4">
+      <p class="text-neutral-600 dark:text-neutral-400 mb-4">
         or click to browse
       </p>
 
-      <p class="text-sm text-gray-500 dark:text-gray-500">
+      <p class="text-sm text-neutral-500">
         images, videos, audio, documents - all processed locally
       </p>
     </div>

@@ -47,7 +47,7 @@
 
           <UIcon
             name="i-heroicons-arrow-right"
-            class="w-5 h-5 text-gray-400"
+            class="w-5 h-5 text-muted"
           />
 
           <USelectMenu
@@ -72,7 +72,7 @@
           class="space-y-2"
         >
           <div class="flex items-center justify-between text-sm">
-            <span class="text-gray-600 dark:text-gray-400">Converting...</span>
+            <span class="text-muted">Converting...</span>
             <span class="text-highlighted font-medium">{{ conversion.progress }}%</span>
           </div>
           <UProgress

@@ -5,7 +5,7 @@
         <span>{{ fromFormat.toUpperCase() }}</span>
         <UIcon
           name="i-heroicons-arrow-right"
-          class="w-6 h-6"
+          class="size-6"
         />
         <span>{{ toFormat.toUpperCase() }}</span>
       </div>
@@ -14,8 +14,8 @@
         Convert {{ fromFormat.toUpperCase() }} to {{ toFormat.toUpperCase() }}
       </h1>
 
-      <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-        Fast, free, and secure {{ fromFormat.toUpperCase() }} to {{ toFormat.toUpperCase() }} conversion.
+      <p class="text-lg text-muted max-w-2xl mx-auto">
+        Fast, free, and secure {{ fromFormat.toUpperCase() }} to {{ toFormat.toUpperCase() }} conversion.<br>
         All processing happens locally in your browser.
       </p>
     </div>
