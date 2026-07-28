@@ -124,23 +124,57 @@ export const useFileConverter = () => {
     const { fetchFile } = await import('@ffmpeg/util')
 
     console.log('FFmpeg loaded, starting conversion...')
-    const inputName = `input.${inputFormat}`
-    const outputName = `output.${outputFormat}`
+    const id = crypto.randomUUID()
+    const inputName = `input-${id}.${inputFormat}`
+    const outputName = `output-${id}.${outputFormat}`
 
     if (!ffmpeg) throw new Error('FFmpeg instance is not available')
 
     await ffmpeg.writeFile(inputName, await fetchFile(file))
-    await ffmpeg.exec(['-i', inputName, outputName])
 
-    const data = await ffmpeg.readFile(outputName) as Uint8Array<ArrayBuffer>
-    const blob = new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)], { type: getMimeType(outputFormat) })
+    const args = ['-i', inputName, ...getAudioEncodingArgs(outputFormat), outputName]
+    try {
+      await ffmpeg.exec(args)
 
-    ffmpeg.deleteFile(inputName)
-    ffmpeg.deleteFile(outputName)
+      const data = await ffmpeg.readFile(outputName) as Uint8Array<ArrayBuffer>
+      const blob = new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)], { type: getMimeType(outputFormat) })
 
-    console.log(`Conversion complete: ${inputFormat} → ${outputFormat}, size: ${blob.size} bytes`)
+      ffmpeg.deleteFile(inputName)
+      ffmpeg.deleteFile(outputName)
 
-    return { blob, size: blob.size }
+      console.log(`Conversion complete: ${inputFormat} → ${outputFormat}, size: ${blob.size} bytes`)
+
+      return { blob, size: blob.size }
+    } finally {
+      try {
+        await ffmpeg.deleteFile(inputName)
+        await ffmpeg.deleteFile(outputName)
+      } catch {
+        console.log('FFmpeg error')
+      }
+    }
+  }
+
+  // ─── Bitrate / encoder settings per output format
+  function getAudioEncodingArgs(outputFormat: string): string[] {
+    switch (outputFormat) {
+      case 'mp3':
+        // libmp3lame CBR at 320kbps (the format's max bitrate)
+        return ['-c:a', 'libmp3lame', '-b:a', '320k']
+      case 'aac':
+      case 'm4a':
+        return ['-c:a', 'aac', '-b:a', '320k']
+      case 'ogg':
+        return ['-c:a', 'libvorbis', '-b:a', '320k']
+      case 'wma':
+        return ['-c:a', 'wmav2', '-b:a', '320k']
+      case 'flac':
+      case 'wav':
+        // lossless formats: bitrate flag doesn't apply
+        return []
+      default:
+        return []
+    }
   }
 
   // ─── Documents
