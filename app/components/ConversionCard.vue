@@ -75,10 +75,7 @@
             <span class="text-muted">Converting...</span>
             <span class="text-highlighted font-medium">{{ conversion.progress }}%</span>
           </div>
-          <UProgress
-            :value="conversion.progress"
-            color="primary"
-          />
+          <UProgress :value="conversion.progress" />
         </div>
 
         <!-- Completed -->

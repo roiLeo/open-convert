@@ -132,7 +132,12 @@ export const useFileConverter = () => {
 
     await ffmpeg.writeFile(inputName, await fetchFile(file))
 
-    const args = ['-i', inputName, ...getAudioEncodingArgs(outputFormat), outputName]
+    const encodingArgs = isVideoFormat(outputFormat)
+      ? getVideoEncodingArgs(outputFormat)
+      : getAudioEncodingArgs(outputFormat)
+
+    const args = ['-i', inputName, ...encodingArgs, outputName]
+
     try {
       await ffmpeg.exec(args)
 
@@ -171,6 +176,29 @@ export const useFileConverter = () => {
       case 'flac':
       case 'wav':
         // lossless formats: bitrate flag doesn't apply
+        return []
+      default:
+        return []
+    }
+  }
+
+  function getVideoEncodingArgs(outputFormat: string): string[] {
+    switch (outputFormat) {
+      case 'mp4':
+        // CRF 20 = visually near-lossless, still reasonable file size
+        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
+      case 'webm':
+        return ['-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0', '-c:a', 'libopus', '-b:a', '192k']
+      case 'mov':
+        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
+      case 'avi':
+        return ['-c:v', 'mpeg4', '-vtag', 'xvid', '-q:v', '3', '-c:a', 'libmp3lame', '-b:a', '192k']
+      case 'mkv':
+        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
+      case 'flv':
+      case 'wmv':
+        // Let ffmpeg pick sane defaults for these — high-quality flags are less
+        // standardized for these legacy containers
         return []
       default:
         return []
