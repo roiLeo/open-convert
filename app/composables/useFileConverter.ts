@@ -66,9 +66,9 @@ export const useFileConverter = () => {
     }
 
     if (
-      (isVideoFormat(inputFormat) && isAudioFormat(outputFormat)) ||
-      (isAudioFormat(inputFormat) && isAudioFormat(outputFormat)) ||
-      (isVideoFormat(inputFormat) && isVideoFormat(outputFormat))
+      (isVideoFormat(inputFormat) && isAudioFormat(outputFormat))
+      || (isAudioFormat(inputFormat) && isAudioFormat(outputFormat))
+      || (isVideoFormat(inputFormat) && isVideoFormat(outputFormat))
     ) {
       return await convertWithFFmpeg(file, inputFormat, outputFormat, onProgress)
     }
@@ -174,58 +174,12 @@ export const useFileConverter = () => {
     }
   }
 
-  // ─── Bitrate / encoder settings per output format
-  function getAudioEncodingArgs(outputFormat: string): string[] {
-    switch (outputFormat) {
-      case 'mp3':
-        // libmp3lame CBR at 320kbps (the format's max bitrate)
-        return ['-c:a', 'libmp3lame', '-b:a', '320k']
-      case 'aac':
-      case 'm4a':
-        return ['-c:a', 'aac', '-b:a', '320k']
-      case 'ogg':
-        return ['-c:a', 'libvorbis', '-b:a', '320k']
-      case 'wma':
-        return ['-c:a', 'wmav2', '-b:a', '320k']
-      case 'flac':
-      case 'wav':
-        // lossless formats: bitrate flag doesn't apply
-        return []
-      default:
-        return []
-    }
-  }
-
-  function getVideoEncodingArgs(outputFormat: string): string[] {
-    switch (outputFormat) {
-      case 'mp4':
-        // CRF 20 = visually near-lossless, still reasonable file size
-        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
-      case 'webm':
-        return ['-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0', '-c:a', 'libopus', '-b:a', '192k']
-      case 'mov':
-        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
-      case 'avi':
-        return ['-c:v', 'mpeg4', '-vtag', 'xvid', '-q:v', '3', '-c:a', 'libmp3lame', '-b:a', '192k']
-      case 'mkv':
-        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
-      case 'flv':
-      case 'wmv':
-        // Let ffmpeg pick sane defaults for these — high-quality flags are less
-        // standardized for these legacy containers
-        return []
-      default:
-        return []
-    }
-  }
-
   // ─── Documents
   async function convertDocument(
     file: File,
     inputFormat: string,
     outputFormat: string
   ): Promise<ConversionResult> {
-    // Plain text-based formats: just re-wrap the content
     const textFormats = ['txt', 'html', 'json', 'xml', 'csv']
     if (textFormats.includes(inputFormat) && textFormats.includes(outputFormat)) {
       const text = await file.text()
@@ -233,17 +187,32 @@ export const useFileConverter = () => {
       return { blob, size: blob.size }
     }
 
-    // TXT/HTML → PDF via jsPDF
+    // Fix #2: paginate TXT/HTML → PDF instead of clipping to one page
     if (textFormats.includes(inputFormat) && outputFormat === 'pdf') {
       const { jsPDF } = await import('jspdf')
       const text = await file.text()
       const doc = new jsPDF()
-      doc.text(text, 10, 10)
+
+      const margin = 10
+      const lineHeight = 7
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const maxLineWidth = pageWidth - margin * 2
+      const maxLinesPerPage = Math.floor((pageHeight - margin * 2) / lineHeight)
+
+      const lines: string[] = doc.splitTextToSize(text, maxLineWidth)
+
+      for (let i = 0; i < lines.length; i += maxLinesPerPage) {
+        if (i > 0) doc.addPage()
+        const pageLines = lines.slice(i, i + maxLinesPerPage)
+        doc.text(pageLines, margin, margin + lineHeight)
+      }
+
+      // Handle empty input gracefully (splitTextToSize on '' returns [''])
       const blob = doc.output('blob')
       return { blob, size: blob.size }
     }
 
-    // XLSX/XLS/CSV → CSV (using SheetJS)
     if (['xlsx', 'xls', 'csv'].includes(inputFormat) && outputFormat === 'csv') {
       const XLSX = await import('xlsx')
       const buffer = await file.arrayBuffer()
@@ -255,7 +224,6 @@ export const useFileConverter = () => {
       return { blob, size: blob.size }
     }
 
-    // XLSX/XLS/CSV → JSON (using SheetJS)
     if (['xlsx', 'xls', 'csv'].includes(inputFormat) && outputFormat === 'json') {
       const XLSX = await import('xlsx')
       const buffer = await file.arrayBuffer()
@@ -305,6 +273,51 @@ export const useFileConverter = () => {
       json: 'application/json', xml: 'application/xml'
     }
     return mimeTypes[format] || 'application/octet-stream'
+  }
+
+  // ─── Bitrate / encoder settings per output format
+  function getAudioEncodingArgs(outputFormat: string): string[] {
+    switch (outputFormat) {
+      case 'mp3':
+        // libmp3lame CBR at 320kbps (the format's max bitrate)
+        return ['-c:a', 'libmp3lame', '-b:a', '320k']
+      case 'aac':
+      case 'm4a':
+        return ['-c:a', 'aac', '-b:a', '320k']
+      case 'ogg':
+        return ['-c:a', 'libvorbis', '-b:a', '320k']
+      case 'wma':
+        return ['-c:a', 'wmav2', '-b:a', '320k']
+      case 'flac':
+      case 'wav':
+        // lossless formats: bitrate flag doesn't apply
+        return []
+      default:
+        return []
+    }
+  }
+
+  function getVideoEncodingArgs(outputFormat: string): string[] {
+    switch (outputFormat) {
+      case 'mp4':
+        // CRF 20 = visually near-lossless, still reasonable file size
+        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
+      case 'webm':
+        return ['-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0', '-c:a', 'libopus', '-b:a', '192k']
+      case 'mov':
+        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
+      case 'avi':
+        return ['-c:v', 'mpeg4', '-vtag', 'xvid', '-q:v', '3', '-c:a', 'libmp3lame', '-b:a', '192k']
+      case 'mkv':
+        return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-c:a', 'aac', '-b:a', '192k']
+      case 'flv':
+      case 'wmv':
+        // Let ffmpeg pick sane defaults for these — high-quality flags are less
+        // standardized for these legacy containers
+        return []
+      default:
+        return []
+    }
   }
 
   return { convertFile }

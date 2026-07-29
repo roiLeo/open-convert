@@ -81,25 +81,23 @@ const [fromFormat = '', , toFormat = ''] = conversionPath.split('-')
 
 const conversions = ref<ConversionItem[]>([])
 
-const handleFilesSelected = (files: File[]) => {
-  const newConversions = files
-    .filter((file) => {
-      const ext = getFileExtension(file.name)
-      return ext === fromFormat.toLowerCase()
-    })
-    .map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      inputFormat: fromFormat.toLowerCase(),
-      outputFormat: toFormat.toLowerCase(),
-      status: 'pending' as const,
-      progress: 0
-    }))
+const MAX_RECOMMENDED_SIZE = 500 * 1024 * 1024 // 500MB, tune to your needs
 
-  conversions.value = [...conversions.value, ...newConversions]
+const handleFilesSelected = (files: File[]) => {
+  const newConversions = files.map(file => ({
+    id: crypto.randomUUID(),
+    file,
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type,
+    inputFormat: getFileExtension(file.name),
+    outputFormat: '',
+    status: 'pending' as const,
+    progress: 0,
+    warning: file.size > MAX_RECOMMENDED_SIZE
+      ? 'Large files may be slow or unstable in-browser'
+      : undefined
+  }))
 
   // Auto-start conversion
   newConversions.forEach(conv => handleConvert(conv))
@@ -112,6 +110,13 @@ const handleConvert = async (conversion: ConversionItem) => {
   const conv = conversions.value[index]
   if (!conv) return
 
+  // guard against converting before an output format is chosen
+  if (!conv.outputFormat) {
+    conv.status = 'error'
+    conv.error = 'Please select an output format before converting'
+    return
+  }
+
   conv.status = 'converting'
   conv.progress = 0
 
@@ -123,7 +128,6 @@ const handleConvert = async (conversion: ConversionItem) => {
       conversion.inputFormat,
       conversion.outputFormat,
       (progress) => {
-        // progress is 0–1 from the converter; ConversionItem.progress is 0–100
         const current = conversions.value[index]
         if (current) {
           current.progress = Math.round(progress * 100)

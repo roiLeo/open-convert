@@ -156,9 +156,11 @@ const popularConversions = [
   { label: 'MP3→WAV', path: '/mp3-to-wav' }
 ]
 
+const MAX_RECOMMENDED_SIZE = 500 * 1024 * 1024 // 500MB, tune to your needs
+
 const handleFilesSelected = (files: File[]) => {
   const newConversions = files.map(file => ({
-    id: Math.random().toString(36).substr(2, 9),
+    id: crypto.randomUUID(),
     file,
     fileName: file.name,
     fileSize: file.size,
@@ -166,7 +168,10 @@ const handleFilesSelected = (files: File[]) => {
     inputFormat: getFileExtension(file.name),
     outputFormat: '',
     status: 'pending' as const,
-    progress: 0
+    progress: 0,
+    warning: file.size > MAX_RECOMMENDED_SIZE
+      ? 'Large files may be slow or unstable in-browser'
+      : undefined
   }))
 
   conversions.value = [...conversions.value, ...newConversions]
@@ -179,6 +184,13 @@ const handleConvert = async (conversion: ConversionItem) => {
   const conv = conversions.value[index]
   if (!conv) return
 
+  // guard against converting before an output format is chosen
+  if (!conv.outputFormat) {
+    conv.status = 'error'
+    conv.error = 'Please select an output format before converting'
+    return
+  }
+
   conv.status = 'converting'
   conv.progress = 0
 
@@ -190,7 +202,6 @@ const handleConvert = async (conversion: ConversionItem) => {
       conversion.inputFormat,
       conversion.outputFormat,
       (progress) => {
-        // progress is 0–1 from the converter; ConversionItem.progress is 0–100
         const current = conversions.value[index]
         if (current) {
           current.progress = Math.round(progress * 100)
