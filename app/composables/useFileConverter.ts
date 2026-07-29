@@ -169,8 +169,8 @@ export const useFileConverter = () => {
       if (onProgress) {
         ffmpeg.off('progress', progressHandler)
       }
-      try { await ffmpeg.deleteFile(inputName) } catch {}
-      try { await ffmpeg.deleteFile(outputName) } catch {}
+      await ffmpeg.deleteFile(inputName)
+      await ffmpeg.deleteFile(outputName)
     }
   }
 
