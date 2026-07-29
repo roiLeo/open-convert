@@ -184,13 +184,6 @@ const handleConvert = async (conversion: ConversionItem) => {
   const conv = conversions.value[index]
   if (!conv) return
 
-  // guard against converting before an output format is chosen
-  if (!conv.outputFormat) {
-    conv.status = 'error'
-    conv.error = 'Please select an output format before converting'
-    return
-  }
-
   conv.status = 'converting'
   conv.progress = 0
 
