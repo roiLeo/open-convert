@@ -185,21 +185,19 @@ const handleConvert = async (conversion: ConversionItem) => {
   try {
     const { convertFile } = useFileConverter()
 
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      const current = conversions.value[index]
-      if (current && current.progress < 90) {
-        current.progress += 10
-      }
-    }, 200)
-
     const result = await convertFile(
       conversion.file,
       conversion.inputFormat,
-      conversion.outputFormat
+      conversion.outputFormat,
+      (progress) => {
+        // progress is 0–1 from the converter; ConversionItem.progress is 0–100
+        const current = conversions.value[index]
+        if (current) {
+          current.progress = Math.round(progress * 100)
+        }
+      }
     )
 
-    clearInterval(progressInterval)
     const current = conversions.value[index]
     if (current) {
       current.progress = 100

@@ -5,6 +5,8 @@ import type { FFmpeg } from '@ffmpeg/ffmpeg'
 let ffmpeg: FFmpeg | null = null
 let ffmpegLoaded = false
 
+export type ProgressCallback = (progress: number) => void
+
 async function loadFFmpeg() {
   if (!import.meta.client) throw new Error('FFmpeg can only run in the browser')
   if (ffmpegLoaded && ffmpeg) return
@@ -50,29 +52,31 @@ export const useFileConverter = () => {
   async function convertFile(
     file: File,
     inputFormat: string,
-    outputFormat: string
+    outputFormat: string,
+    onProgress?: ProgressCallback
   ): Promise<ConversionResult> {
     inputFormat = inputFormat.toLowerCase()
     outputFormat = outputFormat.toLowerCase()
 
     if (isImageFormat(inputFormat) && isImageFormat(outputFormat)) {
-      return await convertImage(file, outputFormat)
+      // Image conversion is effectively instant — report done immediately
+      const result = await convertImage(file, outputFormat)
+      onProgress?.(1)
+      return result
     }
 
-    if (isVideoFormat(inputFormat) && isAudioFormat(outputFormat)) {
-      return await convertWithFFmpeg(file, inputFormat, outputFormat)
-    }
-
-    if (isAudioFormat(inputFormat) && isAudioFormat(outputFormat)) {
-      return await convertWithFFmpeg(file, inputFormat, outputFormat)
-    }
-
-    if (isVideoFormat(inputFormat) && isVideoFormat(outputFormat)) {
-      return await convertWithFFmpeg(file, inputFormat, outputFormat)
+    if (
+      (isVideoFormat(inputFormat) && isAudioFormat(outputFormat)) ||
+      (isAudioFormat(inputFormat) && isAudioFormat(outputFormat)) ||
+      (isVideoFormat(inputFormat) && isVideoFormat(outputFormat))
+    ) {
+      return await convertWithFFmpeg(file, inputFormat, outputFormat, onProgress)
     }
 
     if (isDocumentFormat(inputFormat) || isDocumentFormat(outputFormat)) {
-      return await convertDocument(file, inputFormat, outputFormat)
+      const result = await convertDocument(file, inputFormat, outputFormat)
+      onProgress?.(1)
+      return result
     }
 
     throw new Error(`Conversion from ${inputFormat} to ${outputFormat} is not supported`)
@@ -117,46 +121,56 @@ export const useFileConverter = () => {
   async function convertWithFFmpeg(
     file: File,
     inputFormat: string,
-    outputFormat: string
+    outputFormat: string,
+    onProgress?: ProgressCallback
   ): Promise<ConversionResult> {
-    console.log('Loading FFmpeg for conversion...')
     await loadFFmpeg()
     const { fetchFile } = await import('@ffmpeg/util')
 
-    console.log('FFmpeg loaded, starting conversion...')
+    if (!ffmpeg) throw new Error('FFmpeg instance is not available')
+
     const id = crypto.randomUUID()
     const inputName = `input-${id}.${inputFormat}`
     const outputName = `output-${id}.${outputFormat}`
 
-    if (!ffmpeg) throw new Error('FFmpeg instance is not available')
+    // ffmpeg.on('progress') is a singleton-wide event emitter, not scoped to
+    // one exec() call. Register a listener just for this conversion and
+    // remove it afterward so concurrent/subsequent conversions don't
+    // trigger a stale caller's onProgress.
+    const progressHandler = ({ progress }: { progress: number }) => {
+      // FFmpeg sometimes reports values slightly outside [0, 1]
+      // (e.g. briefly >1, or negative during seek/setup) — clamp it.
+      onProgress?.(Math.min(1, Math.max(0, progress)))
+    }
 
-    await ffmpeg.writeFile(inputName, await fetchFile(file))
-
-    const encodingArgs = isVideoFormat(outputFormat)
-      ? getVideoEncodingArgs(outputFormat)
-      : getAudioEncodingArgs(outputFormat)
-
-    const args = ['-i', inputName, ...encodingArgs, outputName]
+    if (onProgress) {
+      ffmpeg.on('progress', progressHandler)
+    }
 
     try {
+      await ffmpeg.writeFile(inputName, await fetchFile(file))
+
+      const encodingArgs = isVideoFormat(outputFormat)
+        ? getVideoEncodingArgs(outputFormat)
+        : getAudioEncodingArgs(outputFormat)
+
+      const args = ['-i', inputName, ...encodingArgs, outputName]
       await ffmpeg.exec(args)
 
       const data = await ffmpeg.readFile(outputName) as Uint8Array<ArrayBuffer>
-      const blob = new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)], { type: getMimeType(outputFormat) })
+      const blob = new Blob(
+        [data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)],
+        { type: getMimeType(outputFormat) }
+      )
 
-      ffmpeg.deleteFile(inputName)
-      ffmpeg.deleteFile(outputName)
-
-      console.log(`Conversion complete: ${inputFormat} → ${outputFormat}, size: ${blob.size} bytes`)
-
+      onProgress?.(1)
       return { blob, size: blob.size }
     } finally {
-      try {
-        await ffmpeg.deleteFile(inputName)
-        await ffmpeg.deleteFile(outputName)
-      } catch {
-        console.log('FFmpeg error')
+      if (onProgress) {
+        ffmpeg.off('progress', progressHandler)
       }
+      try { await ffmpeg.deleteFile(inputName) } catch {}
+      try { await ffmpeg.deleteFile(outputName) } catch {}
     }
   }
 
