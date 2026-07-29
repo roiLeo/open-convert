@@ -5,6 +5,16 @@ import type { FFmpeg } from '@ffmpeg/ffmpeg'
 let ffmpeg: FFmpeg | null = null
 let ffmpegLoaded = false
 
+let ffmpegQueue: Promise<unknown> = Promise.resolve()
+
+function enqueueFFmpegTask<T>(task: () => Promise<T>): Promise<T> {
+  const result = ffmpegQueue.then(task, task) // run task even if previous one rejected
+  // Swallow errors here so one failed conversion doesn't break the chain
+  // for subsequent queued conversions.
+  ffmpegQueue = result.catch(() => {})
+  return result
+}
+
 export type ProgressCallback = (progress: number) => void
 
 async function loadFFmpeg() {
@@ -124,54 +134,50 @@ export const useFileConverter = () => {
     outputFormat: string,
     onProgress?: ProgressCallback
   ): Promise<ConversionResult> {
-    await loadFFmpeg()
-    const { fetchFile } = await import('@ffmpeg/util')
+    return enqueueFFmpegTask(async () => {
+      await loadFFmpeg()
+      const { fetchFile } = await import('@ffmpeg/util')
 
-    if (!ffmpeg) throw new Error('FFmpeg instance is not available')
+      if (!ffmpeg) throw new Error('FFmpeg instance is not available')
 
-    const id = crypto.randomUUID()
-    const inputName = `input-${id}.${inputFormat}`
-    const outputName = `output-${id}.${outputFormat}`
+      const id = crypto.randomUUID()
+      const inputName = `input-${id}.${inputFormat}`
+      const outputName = `output-${id}.${outputFormat}`
 
-    // ffmpeg.on('progress') is a singleton-wide event emitter, not scoped to
-    // one exec() call. Register a listener just for this conversion and
-    // remove it afterward so concurrent/subsequent conversions don't
-    // trigger a stale caller's onProgress.
-    const progressHandler = ({ progress }: { progress: number }) => {
-      // FFmpeg sometimes reports values slightly outside [0, 1]
-      // (e.g. briefly >1, or negative during seek/setup) — clamp it.
-      onProgress?.(Math.min(1, Math.max(0, progress)))
-    }
-
-    if (onProgress) {
-      ffmpeg.on('progress', progressHandler)
-    }
-
-    try {
-      await ffmpeg.writeFile(inputName, await fetchFile(file))
-
-      const encodingArgs = isVideoFormat(outputFormat)
-        ? getVideoEncodingArgs(outputFormat)
-        : getAudioEncodingArgs(outputFormat)
-
-      const args = ['-i', inputName, ...encodingArgs, outputName]
-      await ffmpeg.exec(args)
-
-      const data = await ffmpeg.readFile(outputName) as Uint8Array<ArrayBuffer>
-      const blob = new Blob(
-        [data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)],
-        { type: getMimeType(outputFormat) }
-      )
-
-      onProgress?.(1)
-      return { blob, size: blob.size }
-    } finally {
-      if (onProgress) {
-        ffmpeg.off('progress', progressHandler)
+      const progressHandler = ({ progress }: { progress: number }) => {
+        onProgress?.(Math.min(1, Math.max(0, progress)))
       }
-      await ffmpeg.deleteFile(inputName)
-      await ffmpeg.deleteFile(outputName)
-    }
+
+      if (onProgress) {
+        ffmpeg!.on('progress', progressHandler)
+      }
+
+      try {
+        await ffmpeg!.writeFile(inputName, await fetchFile(file))
+
+        const encodingArgs = isVideoFormat(outputFormat)
+          ? getVideoEncodingArgs(outputFormat)
+          : getAudioEncodingArgs(outputFormat)
+
+        const args = ['-i', inputName, ...encodingArgs, outputName]
+        await ffmpeg!.exec(args)
+
+        const data = await ffmpeg!.readFile(outputName) as Uint8Array<ArrayBuffer>
+        const blob = new Blob(
+          [data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)],
+          { type: getMimeType(outputFormat) }
+        )
+
+        onProgress?.(1)
+        return { blob, size: blob.size }
+      } finally {
+        if (onProgress) {
+          ffmpeg!.off('progress', progressHandler)
+        }
+        await ffmpeg!.deleteFile(inputName)
+        await ffmpeg!.deleteFile(outputName)
+      }
+    })
   }
 
   // ─── Documents

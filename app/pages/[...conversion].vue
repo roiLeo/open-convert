@@ -91,13 +91,15 @@ const handleFilesSelected = (files: File[]) => {
     fileSize: file.size,
     fileType: file.type,
     inputFormat: getFileExtension(file.name),
-    outputFormat: '',
+    outputFormat: toFormat, // ← use the format parsed from the route
     status: 'pending' as const,
     progress: 0,
     warning: file.size > MAX_RECOMMENDED_SIZE
       ? 'Large files may be slow or unstable in-browser'
       : undefined
   }))
+
+  conversions.value = [...conversions.value, ...newConversions]
 
   // Auto-start conversion
   newConversions.forEach(conv => handleConvert(conv))

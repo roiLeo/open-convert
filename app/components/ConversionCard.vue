@@ -102,7 +102,7 @@
             variant="subtle"
             size="lg"
           >
-            {{ conversion.inputFormat.toUpperCase() }} → {{ selectedFormat.toUpperCase() }}
+            {{ conversion.inputFormat.toUpperCase() }} → {{ selectedFormat.toUpperCase() || conversion.outputFormat.toUpperCase() }}
           </UBadge>
 
           <div class="flex-1" />
