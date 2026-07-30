@@ -35,9 +35,9 @@
           v-for="conversion in conversions"
           :key="conversion.id"
           :conversion="conversion"
-          @convert="handleConvert"
-          @download="handleDownload"
-          @remove="handleRemove"
+          @convert="convert"
+          @download="download"
+          @remove="remove"
         />
       </div>
     </div>
@@ -141,9 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ConversionItem } from '~/types'
-
-const conversions = ref<ConversionItem[]>([])
+const { conversions, addFiles, convert, download, remove } = useConversionQueue()
 
 const popularConversions = [
   { label: 'PNG→JPG', path: '/png-to-jpg' },
@@ -156,82 +154,5 @@ const popularConversions = [
   { label: 'MP3→WAV', path: '/mp3-to-wav' }
 ]
 
-const MAX_RECOMMENDED_SIZE = 500 * 1024 * 1024 // 500MB, tune to your needs
-
-const handleFilesSelected = (files: File[]) => {
-  const newConversions = files.map(file => ({
-    id: crypto.randomUUID(),
-    file,
-    fileName: file.name,
-    fileSize: file.size,
-    fileType: file.type,
-    inputFormat: getFileExtension(file.name),
-    outputFormat: '',
-    status: 'pending' as const,
-    progress: 0,
-    warning: file.size > MAX_RECOMMENDED_SIZE
-      ? 'Large files may be slow or unstable in-browser'
-      : undefined
-  }))
-
-  conversions.value = [...conversions.value, ...newConversions]
-}
-
-const handleConvert = async (conversion: ConversionItem) => {
-  const index = conversions.value.findIndex(c => c.id === conversion.id)
-  if (index === -1) return
-
-  const conv = conversions.value[index]
-  if (!conv) return
-
-  conv.status = 'converting'
-  conv.progress = 0
-
-  try {
-    const { convertFile } = useFileConverter()
-
-    const result = await convertFile(
-      conversion.file,
-      conversion.inputFormat,
-      conversion.outputFormat,
-      (progress) => {
-        const current = conversions.value[index]
-        if (current) {
-          current.progress = Math.round(progress * 100)
-        }
-      }
-    )
-
-    const current = conversions.value[index]
-    if (current) {
-      current.progress = 100
-      current.status = 'completed'
-      current.convertedBlob = result.blob
-      current.convertedSize = result.blob.size
-    }
-  } catch (error) {
-    const current = conversions.value[index]
-    if (current) {
-      current.status = 'error'
-      current.error = error instanceof Error ? error.message : 'Conversion failed'
-    }
-  }
-}
-
-const handleDownload = (conversion: ConversionItem) => {
-  if (!conversion.convertedBlob) return
-
-  const url = URL.createObjectURL(conversion.convertedBlob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${getFileNameWithoutExtension(conversion.fileName)}.${conversion.outputFormat}`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
-const handleRemove = (conversion: ConversionItem) => {
-  conversions.value = conversions.value.filter(c => c.id !== conversion.id)
-}
+const handleFilesSelected = (files: File[]) => addFiles(files)
 </script>
