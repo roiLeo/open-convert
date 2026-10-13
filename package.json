@@ -17,19 +17,19 @@
     "@ffmpeg/util": "^0.12.2",
     "@iconify-json/lucide": "^1.2.128",
     "@iconify-json/simple-icons": "^1.2.94",
-    "@nuxt/ui": "^4.11.2",
+    "@nuxt/ui": "^4.11.3",
     "fs": "0.0.1-security",
     "jspdf": "^4.2.1",
-    "nuxt": "^4.5.2",
+    "nuxt": "^4.6.1",
     "tailwindcss": "^4.3.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
     "@types/node": "^26.6.3",
-    "eslint": "^10.11.0",
+    "eslint": "^10.12.0",
     "typescript": "~6.0.2",
-    "vue-tsc": "^3.3.11"
+    "vue-tsc": "^3.3.13"
   },
   "packageManager": "pnpm@10.28.2"
 }
